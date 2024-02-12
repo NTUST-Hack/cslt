@@ -38,22 +38,23 @@ impl LoginMethod for LoginBySecret {
         cookie_store: Arc<CookieStoreMutex>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let secret_cookie = format!(
-            "ntustsecret={}; Expires=Tue, 19 Jan 2038 04:14:07 GMT; Secure; HttpOnly",
+            "ntustsecret={}; domain=.ntust.edu.tw; expires=Tue, 19 Jan 2038 04:14:07 GMT; path=/; secure; HttpOnly",
             self.secret
         );
         let cookie = HeaderValue::from_str(&secret_cookie)?;
+
         let url = &self.login_page_url.parse()?;
         cookie_store.set_cookies(&mut [cookie].iter(), &url);
 
         let _resp = http_client.get(&self.login_page_url).send().await?;
-        {
-            println!("{}", _resp.text().await.unwrap());
+        // {
+        //     println!("{}", _resp.text().await.unwrap());
 
-            let store = cookie_store.lock().unwrap();
-            for c in store.iter_any() {
-                println!("{:?}", c);
-            }
-        }
+        //     let store = cookie_store.lock().unwrap();
+        //     for c in store.iter_any() {
+        //         println!("{:?}", c);
+        //     }
+        // }
 
         Ok(())
     }
