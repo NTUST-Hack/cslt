@@ -1,2 +1,3 @@
 # cslt
-NTUST Course Selection System SDK for rust
+
+NTUST Course Selection System API for rust
