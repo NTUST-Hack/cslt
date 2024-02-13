@@ -17,6 +17,81 @@ const SELECT_COURSE_API_URL_PRE: &'static str =
 const SELECT_COURSE_API_URL_STARTED: &'static str =
     "https://courseselection.ntust.edu.tw/AddAndSub/B01/ExtraJoin";
 
+pub struct ClientBuilder<'a> {
+    reqwest_builder: reqwest::ClientBuilder,
+
+    user_agent: &'a str,
+    timeout: Duration,
+    choose_list_url: &'a str,
+
+    select_course_api_url_pre: &'a str,
+    select_course_api_url_started: &'a str,
+}
+
+impl<'a> ClientBuilder<'a> {
+    pub fn new() -> Self {
+        ClientBuilder {
+            reqwest_builder: reqwest::ClientBuilder::new(),
+            user_agent: DEFAULT_USER_AGENT,
+            timeout: DEFAULT_TIMEOUT,
+            choose_list_url: DEFAULT_CHOOSE_LIST_URL,
+            select_course_api_url_pre: SELECT_COURSE_API_URL_PRE,
+            select_course_api_url_started: SELECT_COURSE_API_URL_STARTED,
+        }
+    }
+
+    pub fn user_agent(mut self, user_agent: &'a str) -> Self {
+        self.user_agent = user_agent;
+        self
+    }
+
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    pub fn choose_list_url(mut self, url: &'a str) -> Self {
+        self.choose_list_url = url;
+        self
+    }
+
+    pub fn select_course_api_url_pre(mut self, url: &'a str) -> Self {
+        self.select_course_api_url_pre = url;
+        self
+    }
+
+    pub fn select_course_api_url_started(mut self, url: &'a str) -> Self {
+        self.select_course_api_url_started = url;
+        self
+    }
+
+    pub fn local_address(mut self, addr: std::net::IpAddr) -> Self {
+        self.reqwest_builder = self.reqwest_builder.local_address(addr);
+        self
+    }
+
+    pub fn build(self) -> Result<Client, Box<dyn std::error::Error>> {
+        let cookie_store = reqwest_cookie_store::CookieStore::new(None);
+        let cookie_store = CookieStoreMutex::new(cookie_store);
+        let cookie_store = Arc::new(cookie_store);
+
+        Ok(Client {
+            cookie_store: Arc::clone(&cookie_store),
+            http_client: self
+                .reqwest_builder
+                .user_agent(self.user_agent)
+                .timeout(self.timeout)
+                .redirect(redirect::Policy::limited(10))
+                .cookie_provider(Arc::clone(&cookie_store))
+                .build()?,
+            choose_list_url: String::from(self.choose_list_url),
+
+            select_course_api_url_pre: String::from(self.select_course_api_url_pre),
+            select_course_api_url_started: String::from(self.select_course_api_url_started),
+        })
+    }
+}
+
 pub struct Client {
     http_client: reqwest::Client,
     cookie_store: Arc<CookieStoreMutex>,
@@ -29,37 +104,7 @@ pub struct Client {
 
 impl Client {
     pub fn new() -> Self {
-        Client::build(None, None, None, None, None).unwrap()
-    }
-
-    pub fn build(
-        user_agent: Option<&str>,
-        timeout: Option<Duration>,
-        choose_list_url: Option<&str>,
-        select_course_api_url_pre: Option<&str>,
-        select_course_api_url_started: Option<&str>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let cookie_store = reqwest_cookie_store::CookieStore::new(None);
-        let cookie_store = CookieStoreMutex::new(cookie_store);
-        let cookie_store = Arc::new(cookie_store);
-
-        Ok(Client {
-            cookie_store: Arc::clone(&cookie_store),
-            http_client: reqwest::Client::builder()
-                .user_agent(user_agent.unwrap_or(DEFAULT_USER_AGENT))
-                .timeout(timeout.unwrap_or(DEFAULT_TIMEOUT))
-                .redirect(redirect::Policy::limited(10))
-                .cookie_provider(Arc::clone(&cookie_store))
-                .build()?,
-            choose_list_url: String::from(choose_list_url.unwrap_or(DEFAULT_CHOOSE_LIST_URL)),
-
-            select_course_api_url_pre: String::from(
-                select_course_api_url_pre.unwrap_or(SELECT_COURSE_API_URL_PRE),
-            ),
-            select_course_api_url_started: String::from(
-                select_course_api_url_started.unwrap_or(SELECT_COURSE_API_URL_STARTED),
-            ),
-        })
+        ClientBuilder::new().build().unwrap()
     }
 
     pub async fn login(&self, method: &dyn LoginMethod) -> Result<(), Box<dyn std::error::Error>> {

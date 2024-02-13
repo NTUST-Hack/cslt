@@ -1,12 +1,14 @@
-use std::env;
+use std::{env, net::IpAddr};
 
-use cslt::{login::LoginBySecret, Client};
+use cslt::{client::ClientBuilder, login::LoginBySecret};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let secret = env::var("NTUSTSECRET").expect("$NTUSTSECRET is not set");
 
-    let client = Client::new();
+    let client = ClientBuilder::new()
+        .local_address(IpAddr::V4("122.118.194.21".parse()?))
+        .build()?;
 
     let login_by_secret = LoginBySecret::new(&secret);
 
