@@ -10,7 +10,7 @@ pub trait LoginMethod {
         &self,
         http_client: &reqwest::Client,
         cookie_store: std::sync::Arc<reqwest_cookie_store::CookieStoreMutex>,
-    ) -> Result<(), Box<dyn std::error::Error>>;
+    ) -> anyhow::Result<()>;
 }
 
 const DEFAULT_LOGIN_PAGE_URL: &'static str =
@@ -36,7 +36,7 @@ impl LoginMethod for LoginBySecret {
         &self,
         http_client: &reqwest::Client,
         cookie_store: Arc<CookieStoreMutex>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<()> {
         let secret_cookie = format!(
             "ntustsecret={}; domain=.ntust.edu.tw; expires=Tue, 19 Jan 2038 04:14:07 GMT; path=/; secure; HttpOnly",
             self.secret

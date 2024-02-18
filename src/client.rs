@@ -70,7 +70,7 @@ impl<'a> ClientBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> Result<Client, Box<dyn std::error::Error>> {
+    pub fn build(self) -> anyhow::Result<Client> {
         let cookie_store = reqwest_cookie_store::CookieStore::new(None);
         let cookie_store = CookieStoreMutex::new(cookie_store);
         let cookie_store = Arc::new(cookie_store);
@@ -107,7 +107,7 @@ impl Client {
         ClientBuilder::new().build().unwrap()
     }
 
-    pub async fn login(&self, method: &dyn LoginMethod) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn login(&self, method: &dyn LoginMethod) -> anyhow::Result<()> {
         self.clear().await?;
 
         method
@@ -121,7 +121,7 @@ impl Client {
         &self,
         mode: SelectMode<'a>,
         course_no: &str,
-    ) -> Result<SelectResultPage, Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<SelectResultPage> {
         let api_url = match mode {
             SelectMode::Pre => self.select_course_api_url_pre.as_str(),
             SelectMode::Started => self.select_course_api_url_started.as_str(),
@@ -138,14 +138,14 @@ impl Client {
         Ok(SelectResultPage::new(&text))
     }
 
-    pub async fn clear(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn clear(&self) -> anyhow::Result<()> {
         // clear the cookie store
         self.cookie_store.lock().unwrap().clear();
 
         Ok(())
     }
 
-    pub async fn refresh_details(&self) -> Result<DetailsPage, Box<dyn std::error::Error>> {
+    pub async fn refresh_details(&self) -> anyhow::Result<DetailsPage> {
         // println!("url: {}", &self.choose_list_url);
 
         // let store = self.cookie_store.lock().unwrap();

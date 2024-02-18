@@ -19,40 +19,32 @@ impl DetailsPage {
         }
     }
 
-    pub fn name(&self) -> Result<String, Box<dyn std::error::Error>> {
+    pub fn name(&self) -> anyhow::Result<String> {
         let name_selector =
-            Selector::parse("#logoutForm > ul > li:nth-child(1) > a > span.text-success")?;
+            Selector::parse("#logoutForm > ul > li:nth-child(1) > a > span.text-success").unwrap();
 
         match self.doc.select(&name_selector).next() {
             Some(name) => Ok(serialize_string(name.text().collect::<String>().as_str())),
-            _ => Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Cannot find name element",
-            ))),
+            _ => Err(anyhow::Error::msg("Cannot find name element")),
         }
     }
 
-    pub fn class(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let class_selector = Selector::parse(
-            "#logoutForm > ul > li:nth-child(1) > ul > li:nth-child(3) > a > span",
-        )?;
+    pub fn class(&self) -> anyhow::Result<String> {
+        let class_selector =
+            Selector::parse("#logoutForm > ul > li:nth-child(1) > ul > li:nth-child(3) > a > span")
+                .unwrap();
 
         match self.doc.select(&class_selector).next() {
-            Some(class) => return Ok(serialize_string(class.text().collect::<String>().as_str())),
-            _ => {
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Cannot find class element",
-                )))
-            }
+            Some(class) => Ok(serialize_string(class.text().collect::<String>().as_str())),
+            _ => Err(anyhow::Error::msg("Cannot find class element")),
         }
     }
 
-    pub fn courses(&self) -> Result<Vec<Course>, Box<dyn std::error::Error>> {
+    pub fn courses(&self) -> anyhow::Result<Vec<Course>> {
         let courses_selector = Selector::parse(
             "#PrintArea > div:nth-child(2) > table:nth-child(2) > tbody:nth-child(1) > tr:not(:first-child)",
-        )?;
-        let td_selector = Selector::parse("td")?;
+        ).unwrap();
+        let td_selector = Selector::parse("td").unwrap();
 
         let mut courses = Vec::new();
 
@@ -63,10 +55,7 @@ impl DetailsPage {
                 .collect::<Vec<_>>();
 
             if texts.len() < 6 {
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Parse courses info failed",
-                )));
+                return Err(anyhow::Error::msg("Parse courses info failed"));
             }
 
             let course_no = serialize_string(texts[0].as_str());
