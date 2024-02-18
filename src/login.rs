@@ -5,7 +5,7 @@ use reqwest::{cookie::CookieStore, header::HeaderValue};
 use reqwest_cookie_store::CookieStoreMutex;
 
 #[async_trait]
-pub trait LoginMethod {
+pub trait LoginMethod: Sync {
     async fn login(
         &self,
         http_client: &reqwest::Client,
