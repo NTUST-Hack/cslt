@@ -4,5 +4,3 @@ pub mod page;
 
 pub use client::Client;
 pub use client::ClientBuilder;
-
-pub mod blocking;
