@@ -1,15 +1,24 @@
 use regex::Regex;
 use scraper::Selector;
 
+// TODO: use html document to replace string to increase performance
+// cannot use scraper::Html due to it's not threads safe
+// https://github.com/causal-agent/scraper/issues/75
 pub struct DetailsPage {
-    doc: scraper::Html,
+    html: String,
+    // doc: scraper::Html,
 }
 
 impl DetailsPage {
     pub fn new(html: &str) -> Self {
         DetailsPage {
-            doc: scraper::Html::parse_document(html),
+            html: String::from(html),
+            // doc: scraper::Html::parse_document(html),
         }
+    }
+
+    fn parse_document(&self) -> scraper::Html {
+        scraper::Html::parse_document(&self.html)
     }
 
     pub fn is_logined(&self) -> bool {
@@ -23,7 +32,7 @@ impl DetailsPage {
         let name_selector =
             Selector::parse("#logoutForm > ul > li:nth-child(1) > a > span.text-success").unwrap();
 
-        match self.doc.select(&name_selector).next() {
+        match self.parse_document().select(&name_selector).next() {
             Some(name) => Ok(serialize_string(name.text().collect::<String>().as_str())),
             _ => Err(anyhow::Error::msg("Cannot find name element")),
         }
@@ -34,7 +43,7 @@ impl DetailsPage {
             Selector::parse("#logoutForm > ul > li:nth-child(1) > ul > li:nth-child(3) > a > span")
                 .unwrap();
 
-        match self.doc.select(&class_selector).next() {
+        match self.parse_document().select(&class_selector).next() {
             Some(class) => Ok(serialize_string(class.text().collect::<String>().as_str())),
             _ => Err(anyhow::Error::msg("Cannot find class element")),
         }
@@ -48,7 +57,7 @@ impl DetailsPage {
 
         let mut courses = Vec::new();
 
-        for c in self.doc.select(&courses_selector) {
+        for c in self.parse_document().select(&courses_selector) {
             let texts = c
                 .select(&td_selector)
                 .map(|x| x.text().collect::<String>())

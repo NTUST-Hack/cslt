@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Duration};
 
 use cslt::{login::LoginBySecret, Client};
 
@@ -13,6 +13,9 @@ async fn run(ntustsecret: &str) -> anyhow::Result<()> {
     {
         let logined = details.is_logined();
         println!("logined?: {}", logined);
+
+        // make tokio send data between threads to test threads safety
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         if logined {
             let name = details.name()?;
