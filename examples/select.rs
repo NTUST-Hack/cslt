@@ -33,7 +33,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let select_result = client
-            .select_course(SelectMode::Started, "AT2005701")
+            .select_course(SelectMode::Started, "AT2003301")
+            .await?
+            .result()
             .await?;
 
         let result_message = select_result
