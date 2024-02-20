@@ -4,6 +4,8 @@ use async_trait::async_trait;
 use reqwest::{cookie::CookieStore, header::HeaderValue};
 use reqwest_cookie_store::CookieStoreMutex;
 
+use crate::DEFAULT_LOGIN_PAGE_URL;
+
 #[async_trait]
 pub trait LoginMethod: Sync {
     async fn login(
@@ -12,9 +14,6 @@ pub trait LoginMethod: Sync {
         cookie_store: std::sync::Arc<reqwest_cookie_store::CookieStoreMutex>,
     ) -> anyhow::Result<()>;
 }
-
-const DEFAULT_LOGIN_PAGE_URL: &'static str =
-    "https://courseselection.ntust.edu.tw/Account/SingleSignOnLogin";
 
 pub struct LoginBySecret {
     secret: String,

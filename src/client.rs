@@ -6,23 +6,20 @@ use reqwest_cookie_store::CookieStoreMutex;
 use crate::{
     login::LoginMethod,
     page::{DetailsPage, SelectResultPage},
+    DEFAULT_CHOOSE_LIST_URL, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT, SELECT_COURSE_API_URL_PRE,
+    SELECT_COURSE_API_URL_STARTED, SELECT_COURSE_PAGE_URL_PRE, SELECT_COURSE_PAGE_URL_STARTED,
 };
-
-const DEFAULT_USER_AGENT: &'static str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
-const DEFAULT_CHOOSE_LIST_URL: &'static str =
-    "https://courseselection.ntust.edu.tw/ChooseList/D01/D01";
-const SELECT_COURSE_API_URL_PRE: &'static str =
-    "https://courseselection.ntust.edu.tw/First/A06/ExtraJoin";
-const SELECT_COURSE_API_URL_STARTED: &'static str =
-    "https://courseselection.ntust.edu.tw/AddAndSub/B01/ExtraJoin";
 
 pub struct ClientBuilder<'a> {
     reqwest_builder: reqwest::ClientBuilder,
 
     user_agent: &'a str,
     timeout: Duration,
+
     choose_list_url: &'a str,
+
+    select_course_page_url_pre: &'a str,
+    select_course_page_url_started: &'a str,
 
     select_course_api_url_pre: &'a str,
     select_course_api_url_started: &'a str,
@@ -34,7 +31,12 @@ impl<'a> ClientBuilder<'a> {
             reqwest_builder: reqwest::ClientBuilder::new(),
             user_agent: DEFAULT_USER_AGENT,
             timeout: DEFAULT_TIMEOUT,
+
             choose_list_url: DEFAULT_CHOOSE_LIST_URL,
+
+            select_course_page_url_pre: SELECT_COURSE_PAGE_URL_PRE,
+            select_course_page_url_started: SELECT_COURSE_PAGE_URL_STARTED,
+
             select_course_api_url_pre: SELECT_COURSE_API_URL_PRE,
             select_course_api_url_started: SELECT_COURSE_API_URL_STARTED,
         }
@@ -52,6 +54,16 @@ impl<'a> ClientBuilder<'a> {
 
     pub fn choose_list_url(mut self, url: &'a str) -> Self {
         self.choose_list_url = url;
+        self
+    }
+
+    pub fn select_course_page_url_pre(mut self, url: &'a str) -> Self {
+        self.select_course_page_url_pre = url;
+        self
+    }
+
+    pub fn select_course_page_url_started(mut self, url: &'a str) -> Self {
+        self.select_course_page_url_started = url;
         self
     }
 
@@ -86,16 +98,29 @@ impl<'a> ClientBuilder<'a> {
                 .build()?,
             choose_list_url: String::from(self.choose_list_url),
 
+            select_course_page_url_pre: String::from(self.select_course_page_url_pre),
+            select_course_page_url_started: String::from(self.select_course_page_url_started),
+
             select_course_api_url_pre: String::from(self.select_course_api_url_pre),
             select_course_api_url_started: String::from(self.select_course_api_url_started),
         })
     }
 }
 
+pub struct SelectResult<'a> {
+    http_client: &'a reqwest::Client,
+
+    page_url: String,
+}
+
 pub struct Client {
     http_client: reqwest::Client,
     cookie_store: Arc<CookieStoreMutex>,
     choose_list_url: String,
+
+    // select page url
+    select_course_page_url_pre: String,
+    select_course_page_url_started: String,
 
     // select api url
     select_course_api_url_pre: String,
@@ -121,21 +146,31 @@ impl Client {
         &self,
         mode: SelectMode<'a>,
         course_no: &str,
-    ) -> anyhow::Result<SelectResultPage> {
-        let api_url = match mode {
-            SelectMode::Pre => self.select_course_api_url_pre.as_str(),
-            SelectMode::Started => self.select_course_api_url_started.as_str(),
-            SelectMode::Custom(url) => url,
+    ) -> anyhow::Result<SelectResult> {
+        let (page_url, api_url) = match mode {
+            SelectMode::Pre => (
+                self.select_course_page_url_pre.as_str(),
+                self.select_course_api_url_pre.as_str(),
+            ),
+            SelectMode::Started => (
+                self.select_course_page_url_started.as_str(),
+                self.select_course_api_url_started.as_str(),
+            ),
+            SelectMode::Custom(page_url, api_url) => (page_url, api_url),
         };
 
         let mut params = HashMap::new();
         params.insert("CourseNo", course_no);
         params.insert("type", "1");
 
-        let resp = self.http_client.post(api_url).form(&params).send().await?;
-        let text = resp.text().await?;
+        let _resp = self.http_client.post(api_url).form(&params).send().await?;
+        // let text = resp.text().await?;
 
-        Ok(SelectResultPage::new(&text))
+        Ok(SelectResult {
+            http_client: &self.http_client,
+
+            page_url: String::from(page_url),
+        })
     }
 
     pub async fn clear(&self) -> anyhow::Result<()> {
@@ -162,8 +197,19 @@ impl Client {
     }
 }
 
+impl<'a> SelectResult<'a> {
+    pub async fn result(&self) -> anyhow::Result<SelectResultPage> {
+        let resp = self.http_client.get(&self.page_url).send().await?;
+        let text = resp.text().await?;
+
+        // println!("{text}");
+
+        Ok(SelectResultPage::new(&text))
+    }
+}
+
 pub enum SelectMode<'a> {
     Pre,
     Started,
-    Custom(&'a str),
+    Custom(&'a str, &'a str), // page_url, api_url
 }

@@ -121,9 +121,12 @@ impl SelectResultPage {
         )
         .unwrap();
 
-        match re.find(&self.html.as_str()) {
-            Some(message) => Some(String::from(message.as_str())),
-            _ => None,
+        match re.captures(&self.html.as_str()) {
+            Some(captures) => match captures.get(1) {
+                Some(message) => Some(String::from(message.as_str())),
+                None => None,
+            },
+            None => None,
         }
     }
 }

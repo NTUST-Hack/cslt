@@ -1,4 +1,3 @@
-use regex::Regex;
 use scraper::Selector;
 
 pub struct DetailsPage {
@@ -93,28 +92,4 @@ fn serialize_string(v: &str) -> String {
         .replace("\n", "")
         .replace("\t", "")
         .replace("                ", "")
-}
-
-pub struct SelectResultPage {
-    html: String,
-}
-
-impl SelectResultPage {
-    pub fn new(html: &str) -> Self {
-        SelectResultPage {
-            html: String::from(html),
-        }
-    }
-
-    pub fn result_message(&self) -> Option<String> {
-        let re = Regex::new(
-            r#"<script type="text\/javascript">[^<]*alert\(['"]([^'"]+)['"]\);[^<]*<\/script>"#,
-        )
-        .unwrap();
-
-        match re.find(&self.html.as_str()) {
-            Some(message) => Some(String::from(message.as_str())),
-            _ => None,
-        }
-    }
 }

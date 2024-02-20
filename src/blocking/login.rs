@@ -3,6 +3,8 @@ use std::sync::Arc;
 use reqwest::{cookie::CookieStore, header::HeaderValue};
 use reqwest_cookie_store::CookieStoreMutex;
 
+use crate::DEFAULT_LOGIN_PAGE_URL;
+
 pub trait LoginMethod {
     fn login(
         &self,
@@ -10,9 +12,6 @@ pub trait LoginMethod {
         cookie_store: std::sync::Arc<reqwest_cookie_store::CookieStoreMutex>,
     ) -> anyhow::Result<()>;
 }
-
-const DEFAULT_LOGIN_PAGE_URL: &'static str =
-    "https://courseselection.ntust.edu.tw/Account/SingleSignOnLogin";
 
 pub struct LoginBySecret {
     secret: String,
