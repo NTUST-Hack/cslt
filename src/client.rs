@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt, result, sync::Arc};
 
 use reqwest::redirect;
 use reqwest_cookie_store::CookieStoreMutex;
@@ -10,11 +10,22 @@ use crate::{
     SELECT_COURSE_API_URL_STARTED, SELECT_COURSE_PAGE_URL_PRE, SELECT_COURSE_PAGE_URL_STARTED,
 };
 
+#[inline]
+pub fn default_reqwest_builder() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .user_agent(DEFAULT_USER_AGENT)
+        .timeout(DEFAULT_TIMEOUT)
+        .redirect(redirect::Policy::limited(10))
+}
+
+#[inline]
+pub fn default_cookie_store() -> reqwest_cookie_store::CookieStore {
+    reqwest_cookie_store::CookieStore::new(None)
+}
+
 pub struct ClientBuilder<'a> {
     reqwest_builder: reqwest::ClientBuilder,
-
-    user_agent: &'a str,
-    timeout: Duration,
+    cookie_store: reqwest_cookie_store::CookieStore,
 
     choose_list_url: &'a str,
 
@@ -27,10 +38,9 @@ pub struct ClientBuilder<'a> {
 
 impl<'a> ClientBuilder<'a> {
     pub fn new() -> Self {
-        ClientBuilder {
-            reqwest_builder: reqwest::ClientBuilder::new(),
-            user_agent: DEFAULT_USER_AGENT,
-            timeout: DEFAULT_TIMEOUT,
+        Self {
+            reqwest_builder: default_reqwest_builder(),
+            cookie_store: default_cookie_store(),
 
             choose_list_url: DEFAULT_CHOOSE_LIST_URL,
 
@@ -42,13 +52,13 @@ impl<'a> ClientBuilder<'a> {
         }
     }
 
-    pub fn user_agent(mut self, user_agent: &'a str) -> Self {
-        self.user_agent = user_agent;
+    pub fn reqwest_builder(mut self, reqwest_builder: reqwest::ClientBuilder) -> Self {
+        self.reqwest_builder = reqwest_builder;
         self
     }
 
-    pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
+    pub fn cookie_store(mut self, cookie_store: reqwest_cookie_store::CookieStore) -> Self {
+        self.cookie_store = cookie_store;
         self
     }
 
@@ -77,25 +87,17 @@ impl<'a> ClientBuilder<'a> {
         self
     }
 
-    pub fn local_address(mut self, addr: std::net::IpAddr) -> Self {
-        self.reqwest_builder = self.reqwest_builder.local_address(addr);
-        self
-    }
-
-    pub fn build(self) -> anyhow::Result<Client> {
-        let cookie_store = reqwest_cookie_store::CookieStore::new(None);
-        let cookie_store = CookieStoreMutex::new(cookie_store);
+    pub fn build(self) -> Result<Client> {
+        let cookie_store = CookieStoreMutex::new(self.cookie_store);
         let cookie_store = Arc::new(cookie_store);
 
         Ok(Client {
             cookie_store: Arc::clone(&cookie_store),
             http_client: self
                 .reqwest_builder
-                .user_agent(self.user_agent)
-                .timeout(self.timeout)
-                .redirect(redirect::Policy::limited(10))
                 .cookie_provider(Arc::clone(&cookie_store))
                 .build()?,
+
             choose_list_url: String::from(self.choose_list_url),
 
             select_course_page_url_pre: String::from(self.select_course_page_url_pre),
@@ -132,7 +134,10 @@ impl Client {
         ClientBuilder::new().build().unwrap()
     }
 
-    pub async fn login(&self, method: &dyn LoginMethod) -> anyhow::Result<()> {
+    pub async fn login<L>(&self, method: &L) -> Result<()>
+    where
+        L: LoginMethod,
+    {
         self.clear().await?;
 
         method
@@ -146,7 +151,7 @@ impl Client {
         &self,
         mode: SelectMode<'a>,
         course_no: &str,
-    ) -> anyhow::Result<SelectResult> {
+    ) -> Result<SelectResult> {
         let (page_url, api_url) = match mode {
             SelectMode::Pre => (
                 self.select_course_page_url_pre.as_str(),
@@ -173,14 +178,14 @@ impl Client {
         })
     }
 
-    pub async fn clear(&self) -> anyhow::Result<()> {
+    pub async fn clear(&self) -> Result<()> {
         // clear the cookie store
         self.cookie_store.lock().unwrap().clear();
 
         Ok(())
     }
 
-    pub async fn refresh_details(&self) -> anyhow::Result<DetailsPage> {
+    pub async fn refresh_details(&self) -> Result<DetailsPage> {
         // println!("url: {}", &self.choose_list_url);
 
         // let store = self.cookie_store.lock().unwrap();
@@ -195,10 +200,18 @@ impl Client {
 
         Ok(DetailsPage::new(&text.as_str()))
     }
+
+    pub fn reqwest_client(&self) -> &reqwest::Client {
+        &self.http_client
+    }
+
+    pub fn cookie_store(&self) -> Arc<CookieStoreMutex> {
+        Arc::clone(&self.cookie_store)
+    }
 }
 
 impl<'a> SelectResult<'a> {
-    pub async fn result(&self) -> anyhow::Result<SelectResultPage> {
+    pub async fn result(&self) -> Result<SelectResultPage> {
         let resp = self.http_client.get(&self.page_url).send().await?;
         let text = resp.text().await?;
 
@@ -213,3 +226,51 @@ pub enum SelectMode<'a> {
     Started,
     Custom(&'a str, &'a str), // page_url, api_url
 }
+
+#[derive(Debug)]
+pub enum ClientError {
+    Reqwest(reqwest::Error),
+    CookieStore(reqwest_cookie_store::RawCookieParseError),
+    HeaderValue(reqwest::header::InvalidHeaderValue),
+    UrlParse(url::ParseError),
+    Other(String),
+}
+
+impl fmt::Display for ClientError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ClientError::Reqwest(err) => write!(f, "Reqwest error: {}", err),
+            ClientError::CookieStore(err) => write!(f, "Cookie store error: {}", err),
+            ClientError::HeaderValue(err) => write!(f, "Header value error: {}", err),
+            ClientError::UrlParse(err) => write!(f, "URL parse error: {}", err),
+            ClientError::Other(msg) => write!(f, "Other error: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for ClientError {}
+
+impl From<reqwest::Error> for ClientError {
+    fn from(err: reqwest::Error) -> ClientError {
+        ClientError::Reqwest(err)
+    }
+}
+
+impl From<reqwest_cookie_store::RawCookieParseError> for ClientError {
+    fn from(err: reqwest_cookie_store::RawCookieParseError) -> ClientError {
+        ClientError::CookieStore(err)
+    }
+}
+
+impl From<reqwest::header::InvalidHeaderValue> for ClientError {
+    fn from(err: reqwest::header::InvalidHeaderValue) -> ClientError {
+        ClientError::HeaderValue(err)
+    }
+}
+
+impl From<url::ParseError> for ClientError {
+    fn from(err: url::ParseError) -> ClientError {
+        ClientError::UrlParse(err)
+    }
+}
+pub type Result<T> = result::Result<T, ClientError>;

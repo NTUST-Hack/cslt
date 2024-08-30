@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::client::Result;
 use async_trait::async_trait;
 use reqwest::{cookie::CookieStore, header::HeaderValue};
 use reqwest_cookie_store::CookieStoreMutex;
@@ -12,7 +13,7 @@ pub trait LoginMethod: Sync {
         &self,
         http_client: &reqwest::Client,
         cookie_store: std::sync::Arc<reqwest_cookie_store::CookieStoreMutex>,
-    ) -> anyhow::Result<()>;
+    ) -> Result<()>;
 }
 
 pub struct LoginBySecret {
@@ -35,7 +36,7 @@ impl LoginMethod for LoginBySecret {
         &self,
         http_client: &reqwest::Client,
         cookie_store: Arc<CookieStoreMutex>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let secret_cookie = format!(
             "ntustsecret={}; domain=.ntust.edu.tw; expires=Tue, 19 Jan 2038 04:14:07 GMT; path=/; secure; HttpOnly",
             self.secret

@@ -5,8 +5,6 @@ pub mod page;
 pub use client::Client;
 pub use client::ClientBuilder;
 
-pub mod blocking;
-
 use std::time::Duration;
 
 pub const DEFAULT_USER_AGENT: &'static str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
